@@ -67,10 +67,12 @@ cpack_add_component(doc
 install(DIRECTORY ${PROJECT_BINARY_DIR}/docs/html
   DESTINATION ${DOC_INSTALL_DIR}
   COMPONENT doc
+  OPTIONAL
 )
 install(FILES ${PROJECT_BINARY_DIR}/docs/index.html ${PROJECT_BINARY_DIR}/docs/manual.html
   ${PROJECT_BINARY_DIR}/docs/style.css DESTINATION ${DOC_INSTALL_DIR}
   COMPONENT doc
+  OPTIONAL
 )
 
 option(BUILD_EXAMPLES "Build examples" ON)
