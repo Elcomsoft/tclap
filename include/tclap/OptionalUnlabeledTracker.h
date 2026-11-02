@@ -23,10 +23,14 @@
 #ifndef TCLAP_OPTIONAL_UNLABELED_TRACKER_H
 #define TCLAP_OPTIONAL_UNLABELED_TRACKER_H
 
+#include <tclap/ArgException.h>
+
 #include <string>
 
 namespace TCLAP {
 
+// Legacy static helper retained for source compatibility. Built-in positional
+// arguments are validated at registration by their CmdLine, not by this helper.
 class OptionalUnlabeledTracker {
 public:
     static void check(bool req, const std::string &argName);

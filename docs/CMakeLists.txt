@@ -6,8 +6,19 @@ add_file(upload.sh)
 add_file(style.css)
 add_file(README)
 add_file(manual.xml)
+configure_file(${PROJECT_SOURCE_DIR}/examples/test1.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/test1.cpp COPYONLY)
 add_file(index.html)
 add_file(build.html)
+
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/index.html
+    ${CMAKE_CURRENT_BINARY_DIR}/style.css
+    ${CMAKE_CURRENT_BINARY_DIR}/test1.cpp
+  DESTINATION ${DOC_INSTALL_DIR}
+  COMPONENT doc
+)
 
 # check if Doxygen is installed
 find_package(Doxygen)
@@ -26,6 +37,11 @@ if (DOXYGEN_FOUND)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating API documentation with Doxygen"
         VERBATIM )
+
+    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/html
+      DESTINATION ${DOC_INSTALL_DIR}
+      COMPONENT doc
+    )
 else ()
   message("Doxygen need to be installed to generate the doxygen documentation")
 endif ()
@@ -40,5 +56,10 @@ add_custom_target( doc_manual ALL
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   COMMENT "Processing manual.xml to HTML"
   VERBATIM)
+
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/manual.html
+  DESTINATION ${DOC_INSTALL_DIR}
+  COMPONENT doc
+)
 endif ()
 endif ()

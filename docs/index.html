@@ -4,7 +4,7 @@
   - 
   -  Copyright (c) 2003-2012 Michael E. Smoot
   -  Copyright (c) 2004-2016 Daniel Aarno
-  -  Copyright (c) 2017-2021 Google LLC
+  -  Copyright (c) 2017-2026 Google LLC
   -  All rights reverved.
   - 
   -  See the file COPYING in the top directory of this distribution for
@@ -25,25 +25,26 @@
 <head>
 <meta name="generator" content=
 "HTML Tidy for Mac OS X (vers 1st August 2004), see www.w3.org" />
-<title>tclap -- Templatized C++ Command Line Parser Library (v1.4)</title>
+<title>tclap -- Templatized C++ Command Line Parser Library</title>
 <link rel="stylesheet" href="style.css" type="text/css">
 </head>
 <body>
 <table summary="Title and Sourceforge logo.">
 <tr>
 <td align="left">
-<h1>Templatized C++ Command Line Parser Library (v1.4)</h1>
+<h1>Templatized C++ Command Line Parser Library</h1>
 </td>
 <td align="right">
-<a href="http://sourceforge.net/projects/tclap"><img src="http://sflogo.sourceforge.net/sflogo.php?group_id=76645&amp;type=15" width="150" height="40" alt="Get Templatized C++ Command Line Parser at SourceForge.net. Fast, secure and Free Open Source software downloads" /></a>
+<a href="https://sourceforge.net/projects/tclap"><img src="https://sflogo.sourceforge.net/sflogo.php?group_id=76645&amp;type=15" width="150" height="40" alt="Get Templatized C++ Command Line Parser at SourceForge.net. Fast, secure and Free Open Source software downloads" /></a>
 </td>
 </tr>
 </table>
 <div class="links">
 <h3>Links</h3>
 <ul class="menu">
-<li><A HREF="http://tclap.sourceforge.net/v1.2/index.html">Go to v1.2</A></li><br/>
-<li><a href="http://sourceforge.net/project/showfiles.php?group_id=76645">Download</a>
+<li><a href="https://tclap.sourceforge.net/v1.2/index.html">Go to v1.2 documentation</a></li><br/>
+<li><a href="https://tclap.sourceforge.net/v1.6/index.html">Go to v1.6 documentation</a></li><br/>
+<li><a href="https://sourceforge.net/projects/tclap/files/">Download</a>
   the source
 <a href="https://sourceforge.net/projects/tclap/files/latest/download">
   <img alt="Download Templatized C++ Command Line Parser"
@@ -52,20 +53,23 @@
 <li>Read the <a href="manual.html">Manual</a></li><br/>
 <li>Read the <a href="html/index.html">API documentation</a></li><br/>
 <li>Visit the 
-<a href="http://sourceforge.net/projects/tclap/">SourceForge project page</a></li><br/>
+<a href="https://sourceforge.net/projects/tclap/">SourceForge project page</a></li><br/>
 <li>Send <a href="https://sourceforge.net/p/tclap/_list/tickets">feedback, comments, patches, etc.</a></li></br>
 </ul>
   
-<h3>Branch 1.4</h3>
-Windows <img src="https://dev.azure.com/danielaarno/tclap/_apis/build/status/tclap-cmake-WIN"
-     alt="Windows build status"><br>
-
-Linux <img src="https://dev.azure.com/danielaarno/tclap/_apis/build/status/tclap-cmake-LINUX"
-     alt="Linux build status"><br>
-
-Mac <img src="https://dev.azure.com/danielaarno/tclap/_apis/build/status/tclap-cmake-MAC"
-     alt="Mac build status"><br>
-
+<h3>GitHub Actions CI</h3>
+<p>Branch 1.2: <a href="https://github.com/DAarno/tclap/actions/workflows/build-1.2.yml?query=branch%3A1.2">
+  <img src="https://github.com/DAarno/tclap/actions/workflows/build-1.2.yml/badge.svg?branch=1.2"
+       alt="Branch 1.2 GitHub Actions workflow status"></a></p>
+<p>Branch 1.4: <a href="https://github.com/DAarno/tclap/actions/workflows/build-1.4.yml?query=branch%3A1.4">
+  <img src="https://github.com/DAarno/tclap/actions/workflows/build-1.4.yml/badge.svg?branch=1.4"
+       alt="Branch 1.4 GitHub Actions workflow status"></a></p>
+<p>Branch 1.6: <a href="https://github.com/DAarno/tclap/actions/workflows/build-1.6.yml?query=branch%3A1.6">
+  <img src="https://github.com/DAarno/tclap/actions/workflows/build-1.6.yml/badge.svg?branch=1.6"
+       alt="Branch 1.6 GitHub Actions workflow status"></a></p>
+<p>Branch 2.0: <a href="https://github.com/DAarno/tclap/actions/workflows/build-2.0.yml?query=branch%3A2.0">
+  <img src="https://github.com/DAarno/tclap/actions/workflows/build-2.0.yml/badge.svg?branch=2.0"
+       alt="Branch 2.0 GitHub Actions workflow status"></a></p>
 </div>
 <div class="main">
 
@@ -82,14 +86,42 @@ close.
 </p>
 
 <p>
-<em>TCLAP</em> is written in ANSI C++ and is meant to be compatible with any 
-standards-compliant C++ compiler.  It is known to work on Linux, MacOS X,
+<em>TCLAP</em> supports C++98 and later with version 1.4, and C++20 and
+later with version 1.6. It is known to work on Linux, MacOS X,
 Windows, and Solaris platforms.  The library is implemented 
 entirely in header files making it easy to use and distribute with other 
 software.  It is licensed under the 
-<a href="http://opensource.org/licenses/mit-license.php">MIT License</a>
+<a href="https://opensource.org/license/mit">MIT License</a>
 for worry free distribution.
 </p>
+<h2>Quick start</h2>
+<p>This example uses the TCLAP 1.4 API and requires C++98 or later.</p>
+<pre><code>int main(int argc, char **argv) {
+    try {
+        TCLAP::CmdLine cmd("Print a greeting.", ' ', "1.0");
+        TCLAP::ValueArg&lt;std::string&gt; name(
+            "n", "name", "Name to greet", false, "world", "string", cmd);
+        cmd.parse(argc, argv);
+        std::cout &lt;&lt; "Hello, " &lt;&lt; name.getValue() &lt;&lt; "!\n";
+    } catch (const TCLAP::ArgException &amp;e) {
+        std::cerr &lt;&lt; e.what() &lt;&lt; '\n';
+        return 1;
+    }
+    return 0;
+}
+</code></pre>
+<p>Add the <code>&lt;tclap/CmdLine.h&gt;</code>, <code>&lt;iostream&gt;</code>
+and <code>&lt;string&gt;</code> headers and save as <code>hello.cpp</code>.
+With TCLAP headers on your include path, compile and run:</p>
+<pre><code>c++ -std=c++98 hello.cpp -o hello
+./hello
+Hello, world!
+./hello --name Ada
+Hello, Ada!
+</code></pre>
+<p><code>-n Ada</code> also sets the name. Use <code>--help</code> to see
+all options. See the <a href="manual.html">manual</a> for more examples.</p>
+
 <p>
 <em>TCLAP</em> is now a mature, stable, and feature rich package.  
 Please don't let any apparent project inactivity discourage you
@@ -104,14 +136,19 @@ send us your feedback</a>!
 <em>Happy coding!</em>
 </p>
 
-<p style="background-color:powderblue;">
-	<b>NOTE: </b>The current development version of TCLAP is <b>1.4</b>, it is
-	recommended for use by new projects.
-	
-	The stable version of TCLAP is <b>1.2</b> and it will only receive critical
-	bug fixes. You can find the
-	<A HREF="http://tclap.sourceforge.net/v1.2/index.html">
-		documentation for v1.2 here.</A>
+<h2>Choosing a version</h2>
+<ul>
+<li><b>TCLAP 1.2</b> is for existing integrations that require the legacy
+1.2 API or behavior. It receives only critical bug fixes.</li>
+<li><b>TCLAP 1.4</b> is recommended for projects requiring C++98
+compatibility. It is a maintenance version with no new feature development.</li>
+<li><b>TCLAP 1.6</b> is recommended for projects using C++20 or later.
+It has modernized internals and an API mostly source compatible with 1.4.</li>
+</ul>
+<p>
+Choose the version that matches your project's C++ and API requirements.
+Documentation: <a href="https://tclap.sourceforge.net/v1.2/">1.2</a> and
+<a href="https://tclap.sourceforge.net/v1.6/">1.6</a>.
 </p>
 </div>
   

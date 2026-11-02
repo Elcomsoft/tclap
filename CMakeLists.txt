@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7)
+cmake_minimum_required(VERSION 3.13)
 
 project(TCLAP VERSION 1.4.0 LANGUAGES CXX)
 set("PROJECT_DESCRIPTION" "A header-only templatized C++ command line parser library")
@@ -8,7 +8,6 @@ set(CMAKE_CXX_STANDARD 98)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 add_definitions(-DHAVE_TCLAP_CONFIG_H)
 
-enable_testing()
 include(CTest)
 include(CPackComponent)
 include(GNUInstallDirs)
@@ -45,7 +44,7 @@ install(TARGETS TCLAP EXPORT TCLAP
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 install(FILES "${GENERATED_CONFIG_BUILD_PATH}"
-  DESTINATION include/tclap
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/tclap"
   COMPONENT lib
 )
 
@@ -64,20 +63,11 @@ cpack_add_component(doc
 	DESCRIPTION "Documentation files for TCLAP"
 )
 
-install(DIRECTORY ${PROJECT_BINARY_DIR}/docs/html
-  DESTINATION ${DOC_INSTALL_DIR}
-  COMPONENT doc
-  OPTIONAL
-)
-install(FILES ${PROJECT_BINARY_DIR}/docs/index.html ${PROJECT_BINARY_DIR}/docs/manual.html
-  ${PROJECT_BINARY_DIR}/docs/style.css DESTINATION ${DOC_INSTALL_DIR}
-  COMPONENT doc
-  OPTIONAL
-)
-
 option(BUILD_EXAMPLES "Build examples" ON)
-option(BUILD_UNITTESTS "Build unit tests" ON)
+option(BUILD_UNITTESTS "Build unit tests" ${BUILD_TESTING})
 option(BUILD_DOC "Build documentation" ON)
+option(BUILD_FUZZERS "Build libFuzzer-based fuzz targets (requires Clang)" OFF)
+option(BUILD_FUZZ_REGRESSION "Build portable regression runners for the fuzz seed corpus" ${BUILD_TESTING})
 
 if(BUILD_DOC)
 	add_subdirectory(docs)
@@ -85,8 +75,13 @@ endif()
 if(BUILD_EXAMPLES)
 	add_subdirectory(examples)
 endif()
-add_subdirectory(tests)
-if(BUILD_UNITTESTS)
+if(BUILD_TESTING AND BUILD_EXAMPLES)
+	add_subdirectory(tests)
+endif()
+if(BUILD_FUZZERS OR BUILD_FUZZ_REGRESSION)
+	add_subdirectory(fuzz)
+endif()
+if(BUILD_TESTING AND BUILD_UNITTESTS)
 	add_subdirectory(unittests)
 endif()
 add_subdirectory(include/tclap)
@@ -97,6 +92,7 @@ set(PackagingTemplatesDir "${CMAKE_CURRENT_SOURCE_DIR}/packaging")
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VENDOR "tclap developers")
 set(CPACK_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
 set(CPACK_DEBIAN_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
 set(CPACK_RPM_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
 set(CPACK_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
@@ -109,7 +105,7 @@ set(CPACK_DEBIAN_LIB_PACKAGE_NAME "lib${PROJECT_NAME}-dev")
 set(CPACK_DEBIAN_LIB_PACKAGE_DEPENDS "libc6-dev")
 set(CPACK_DEBIAN_LIB_PACKAGE_SUGGESTS "cmake, pkg-config, pkg-conf")
 
-set(CPACK_DEBIAN_DOC_PACKAGE_NAME "${PROJECT_NAME}-dev")
+set(CPACK_DEBIAN_DOC_PACKAGE_NAME "${PROJECT_NAME}-doc")
 
 set(CPACK_RPM_LIB_PACKAGE_NAME "lib${PROJECT_NAME}-devel")
 set(CPACK_RPM_LIB_PACKAGE_SUGGESTS "${CPACK_DEBIAN_PACKAGE_SUGGESTS}")

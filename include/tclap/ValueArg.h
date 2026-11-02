@@ -69,7 +69,7 @@ protected:
     /**
      * A Constraint this Arg must conform to.
      */
-    Constraint<T> *_constraint;
+    const Constraint<T> *_constraint;
 
     /**
      * Extracts the value from the string.
@@ -82,7 +82,7 @@ protected:
 public:
     /**
      * Labeled ValueArg constructor.
-     * 
+     *
      * \param flag - The one character flag that identifies this
      * argument on the command line.
      * \param name - A one word name for the argument.  Can be
@@ -151,7 +151,7 @@ public:
      */
     ValueArg(const std::string &flag, const std::string &name,
              const std::string &desc, bool req, T value,
-             Constraint<T> *constraint, ArgContainer &parser,
+             const Constraint<T> *constraint, ArgContainer &parser,
              Visitor *v = NULL);
 
     /**
@@ -174,7 +174,7 @@ public:
      */
     ValueArg(const std::string &flag, const std::string &name,
              const std::string &desc, bool req, T value,
-             Constraint<T> *constraint, Visitor *v = NULL);
+             const Constraint<T> *constraint, Visitor *v = NULL);
 
     /**
      * Handles the processing of the argument.
@@ -213,6 +213,8 @@ public:
     virtual void reset();
 
 private:
+    void _extractNextValue(int *index, std::vector<std::string> &args);
+
   /**
    * Prevent accidental copying
    */
@@ -249,7 +251,7 @@ ValueArg<T>::ValueArg(const std::string &flag, const std::string &name,
 template <class T>
 ValueArg<T>::ValueArg(const std::string &flag, const std::string &name,
                       const std::string &desc, bool req, T val,
-                      Constraint<T> *constraint, Visitor *v)
+                      const Constraint<T> *constraint, Visitor *v)
     : Arg(flag, name, desc, req, true, v),
       _value(val),
       _default(val),
@@ -259,7 +261,7 @@ ValueArg<T>::ValueArg(const std::string &flag, const std::string &name,
 template <class T>
 ValueArg<T>::ValueArg(const std::string &flag, const std::string &name,
                       const std::string &desc, bool req, T val,
-                      Constraint<T> *constraint, ArgContainer &parser,
+                      const Constraint<T> *constraint, ArgContainer &parser,
                       Visitor *v)
     : Arg(flag, name, desc, req, true, v),
       _value(val),
@@ -280,34 +282,39 @@ bool ValueArg<T>::processArg(int *i, std::vector<std::string> &args) {
 
     std::string value = "";
     trimFlag(flag, value);
+    const bool hasAttachedValue = flag != args[*i];
 
-    if (argMatches(flag)) {
-        if (_alreadySet) {
-            throw(CmdLineParseException("Argument already set!", toString()));
-        }
+    if (!argMatches(flag)) return false;
 
-        if (Arg::delimiter() != ' ' && value == "")
-            throw(ArgParseException(
-                "Couldn't find delimiter for this argument!", toString()));
-
-        if (value == "") {
-            (*i)++;
-            if (static_cast<unsigned int>(*i) < args.size())
-                _extractValue(args[*i]);
-            else
-                throw(ArgParseException("Missing a value for this argument!",
-                                        toString()));
-        } else {
-            _extractValue(value);
-        }
-
-        _alreadySet = true;
-        _setBy = flag;
-        _checkWithVisitor();
-        return true;
-    } else {
-        return false;
+    if (_alreadySet) {
+        throw(CmdLineParseException("Argument already set!", toString()));
     }
+
+    if (this->getDelimiter() != ' ' && !hasAttachedValue)
+        throw(ArgParseException(
+            "Couldn't find delimiter for this argument!", toString()));
+
+    if (!hasAttachedValue) {
+        _extractNextValue(i, args);
+    } else {
+        _extractValue(value);
+    }
+
+    _alreadySet = true;
+    _setBy = flag;
+    _checkWithVisitor();
+    return true;
+}
+
+template <class T>
+void ValueArg<T>::_extractNextValue(int *index,
+                                     std::vector<std::string> &args) {
+    (*index)++;
+    if (static_cast<unsigned int>(*index) < args.size())
+        _extractValue(args[*index]);
+    else
+        throw(ArgParseException("Missing a value for this argument!",
+                                toString()));
 }
 
 /**
@@ -334,12 +341,11 @@ void ValueArg<T>::_extractValue(const std::string &val) {
         throw ArgParseException(e.error(), toString());
     }
 
-    if (_constraint != NULL)
-        if (!_constraint->check(_value))
-            throw(CmdLineParseException("Value '" + val +
-                                            +"' does not meet constraint: " +
-                                            _constraint->description(),
-                                        toString()));
+    if (_constraint != NULL && !_constraint->check(_value))
+        throw(CmdLineParseException("Value '" + val +
+                                        +"' does not meet constraint: " +
+                                        _constraint->description(),
+                                    toString()));
 }
 
 template <class T>

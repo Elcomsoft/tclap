@@ -7,7 +7,7 @@ set(msvc_cxx "$<CXX_COMPILER_ID:MSVC>")
 function(default_opts target)
 target_compile_options(${target} PRIVATE
     "$<${gcc_like_cxx}:$<BUILD_INTERFACE:-Wall;-Wextra;-Weffc++>>"
-    "$<${msvc_cxx}:$<BUILD_INTERFACE:-W3>>"
+    "$<${msvc_cxx}:$<BUILD_INTERFACE:-W3;/utf-8>>"
 )
 endfunction()
 
@@ -21,3 +21,32 @@ foreach(file ${TEST_FILES})
   default_opts(${file_basename})
   add_test(NAME ${file_basename} COMMAND ${file_basename})
 endforeach()
+
+# Run the same usage checks with the legacy configurable prefixes.
+add_executable(AlternatePrefixShortUsageTest ShortUsageTest.cpp)
+target_include_directories(AlternatePrefixShortUsageTest PRIVATE
+    ../include/ ${PROJECT_BINARY_DIR})
+target_compile_definitions(AlternatePrefixShortUsageTest PRIVATE
+    "TCLAP_FLAGSTARTCHAR='/'" "TCLAP_FLAGSTARTSTRING=\"/\""
+    "TCLAP_NAMESTARTSTRING=\"//\"")
+default_opts(AlternatePrefixShortUsageTest)
+add_test(NAME AlternatePrefixShortUsageTest COMMAND AlternatePrefixShortUsageTest)
+
+# Verify the opt-in historical NUL truncation separately from strict defaults.
+add_executable(NulTruncationCompatibilityTest NulValueTest.cpp)
+target_include_directories(NulTruncationCompatibilityTest PRIVATE
+    ../include/ ${PROJECT_BINARY_DIR})
+target_compile_definitions(NulTruncationCompatibilityTest PRIVATE
+    TCLAP_ALLOW_NUL_TRUNCATION=1 TCLAP_EXPECT_NUL_TRUNCATION=1)
+default_opts(NulTruncationCompatibilityTest)
+add_test(NAME NulTruncationCompatibilityTest COMMAND NulTruncationCompatibilityTest)
+
+# Equal prefixes exercise alias conflicts across short/long namespaces.
+add_executable(AlternatePrefixAliasDialectTest AliasDialectTest.cpp)
+target_include_directories(AlternatePrefixAliasDialectTest PRIVATE
+    ../include/ ${PROJECT_BINARY_DIR})
+target_compile_definitions(AlternatePrefixAliasDialectTest PRIVATE
+    "TCLAP_FLAGSTARTCHAR='/'" "TCLAP_FLAGSTARTSTRING=\"/\""
+    "TCLAP_NAMESTARTSTRING=\"/\"")
+default_opts(AlternatePrefixAliasDialectTest)
+add_test(NAME AlternatePrefixAliasDialectTest COMMAND AlternatePrefixAliasDialectTest)

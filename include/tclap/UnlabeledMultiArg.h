@@ -112,7 +112,7 @@ public:
      * use this unless you have a very good reason.
      */
     UnlabeledMultiArg(const std::string &name, const std::string &desc,
-                      bool req, Constraint<T> *constraint,
+                      bool req, const Constraint<T> *constraint,
                       bool ignoreable = false, Visitor *v = NULL);
 
     /**
@@ -132,8 +132,9 @@ public:
      * use this unless you have a very good reason.
      */
     UnlabeledMultiArg(const std::string &name, const std::string &desc,
-                      bool req, Constraint<T> *constraint, ArgContainer &parser,
-                      bool ignoreable = false, Visitor *v = NULL);
+                      bool req, const Constraint<T> *constraint,
+                      ArgContainer &parser, bool ignoreable = false,
+                      Visitor *v = NULL);
 
     /**
      * Handles the processing of the argument.
@@ -183,7 +184,6 @@ UnlabeledMultiArg<T>::UnlabeledMultiArg(const std::string &name,
                                         bool ignoreable, Visitor *v)
     : MultiArg<T>("", name, desc, req, typeDesc, v) {
     _ignoreable = ignoreable;
-    OptionalUnlabeledTracker::check(true, toString());
 }
 
 template <class T>
@@ -194,29 +194,26 @@ UnlabeledMultiArg<T>::UnlabeledMultiArg(const std::string &name,
                                         Visitor *v)
     : MultiArg<T>("", name, desc, req, typeDesc, v) {
     _ignoreable = ignoreable;
-    OptionalUnlabeledTracker::check(true, toString());
     parser.add(this);
 }
 
 template <class T>
 UnlabeledMultiArg<T>::UnlabeledMultiArg(const std::string &name,
                                         const std::string &desc, bool req,
-                                        Constraint<T> *constraint,
+                                        const Constraint<T> *constraint,
                                         bool ignoreable, Visitor *v)
     : MultiArg<T>("", name, desc, req, constraint, v) {
     _ignoreable = ignoreable;
-    OptionalUnlabeledTracker::check(true, toString());
 }
 
 template <class T>
 UnlabeledMultiArg<T>::UnlabeledMultiArg(const std::string &name,
                                         const std::string &desc, bool req,
-                                        Constraint<T> *constraint,
+                                        const Constraint<T> *constraint,
                                         ArgContainer &parser, bool ignoreable,
                                         Visitor *v)
     : MultiArg<T>("", name, desc, req, constraint, v) {
     _ignoreable = ignoreable;
-    OptionalUnlabeledTracker::check(true, toString());
     parser.add(this);
 }
 
@@ -224,18 +221,8 @@ template <class T>
 bool UnlabeledMultiArg<T>::processArg(int *i, std::vector<std::string> &args) {
     if (_hasBlanks(args[*i])) return false;
 
-    // never ignore an unlabeled multi arg
-
     // always take the first value, regardless of the start string
     _extractValue(args[(*i)]);
-
-    /*
-    // continue taking args until we hit the end or a start string
-    while ( (unsigned int)(*i)+1 < args.size() &&
-            args[(*i)+1].find_first_of( Arg::flagStartString() ) != 0 &&
-            args[(*i)+1].find_first_of( Arg::nameStartString() ) != 0 )
-        _extractValue( args[++(*i)] );
-    */
 
     _alreadySet = true;
     _setBy = args[*i];
@@ -245,10 +232,8 @@ bool UnlabeledMultiArg<T>::processArg(int *i, std::vector<std::string> &args) {
 
 template <class T>
 bool UnlabeledMultiArg<T>::operator==(const Arg &a) const {
-    if (_name == a.getName() || _description == a.getDescription())
-        return true;
-    else
-        return false;
+    return _name == a.getName() ||
+           this->getDescription() == a.getDescription();
 }
 
 template <class T>

@@ -7,7 +7,7 @@
   -  file:  manual.xml
   - 
   -  Copyright (c) 2003-2012 Michael E. Smoot .
-  -  Copyright (c) 2017-2021 Google LLC.
+  -  Copyright (c) 2017-2026 Google LLC.
   -  All rights reserved.
   - 
   -  See the file COPYING in the top directory of this distribution for
@@ -37,7 +37,7 @@
     </author>
 
     <copyright>
-	<year>2017-2021</year>
+	<year>2017-2026</year>
 	<holder>Google LLC</holder>
     </copyright>
 
@@ -218,7 +218,7 @@ any version information to
 be displayed, and <parameter>--</parameter> or 
 <parameter>--ignore_rest</parameter> will cause the
 remaining labeled arguments to be ignored. These switches are
-included by default on every command line. You can <link linked="NO_HELP_VERSION">disable this functionality</link> if desired (although we don't recommend it).
+included by default on every command line. You can <link linkend="NO_HELP_VERSION">disable this functionality</link> if desired (although we don't recommend it).
 </listitem>
 
 <listitem>If there is an error parsing the command line (e.g. a required
@@ -275,8 +275,96 @@ the type of argument. Some possible values include:
 </sect2>
 </sect1>
 
+<sect1 id="PARSER_STATE">
+<title>Independent parsers</title>
+<para>
+Each <classname>CmdLine</classname> owns its delimiter and positional
+registration checks. Optional positional arguments must be registered last;
+constructing an unregistered argument does not affect another parser.
+Use separate argument objects for separate parsers and keep the parser alive
+while using its registered arguments. Custom argument implementations should
+use <methodname>getDelimiter()</methodname>, which observes their parser's
+delimiter. The legacy static <methodname>Arg::delimiter()</methodname> and
+<methodname>Arg::setDelimiter()</methodname> remain available for unregistered
+arguments and legacy custom code, but do not select a registered parser's
+delimiter. The legacy <classname>OptionalUnlabeledTracker</classname> static
+helper is no longer used by the built-in arguments.
+</para>
+<para>
+Failed registration leaves the parser's argument list, required count,
+positional checks, delimiter bindings and group membership unchanged.
+A group rejected during attachment can be retried on another parser.
+Custom <methodname>addToList()</methodname> hooks receive a temporary list
+with the owning delimiter already bound; do not retain that list or re-enter
+registration. Application side effects in custom hooks are not rolled back.
+Custom <classname>CmdLineInterface</classname> implementations retain the
+legacy attachment default and can override the protected
+<methodname>attachGroup()</methodname> hook for their own transaction handling.
+</para>
+<para>
+<methodname>add()</methodname> borrows its argument; it does not copy it or
+transfer ownership. Keep caller-owned arguments alive while the parser uses
+them. Constraints and custom output objects passed to
+<methodname>setOutput()</methodname> are also borrowed and must remain alive
+while used. Declare dependencies before the objects that refer to them. This
+example declares the constraint and output first, the argument next, and the
+parser last, so destruction happens in the reverse order:
+</para>
+<programlisting>#include &lt;tclap/CmdLine.h&gt;
+#include &lt;tclap/ValuesConstraint.h&gt;
+#include &lt;tclap/StdOutput.h&gt;
+#include &lt;vector&gt;
+
+int main(int argc, char **argv) {
+    std::vector&lt;int&gt; allowed;
+    allowed.push_back(1);
+    allowed.push_back(2);
+    TCLAP::ValuesConstraint&lt;int&gt; choices(allowed);
+    TCLAP::StdOutput output;
+    TCLAP::ValueArg&lt;int&gt; count("n", "number", "Choose a number",
+                              false, 1, &amp;choices);
+    TCLAP::CmdLine cmd("example");
+    cmd.setOutput(&amp;output);
+    cmd.add(count);
+    cmd.parse(argc, argv);
+    return 0;
+}
+</programlisting>
+<para>
+Visitor objects supplied to arguments are borrowed and must remain alive
+when invoked. Groups passed to the parser are also borrowed. Use distinct argument objects for separate live parsers.
+Keep the parser alive while using registered arguments' delimiter bindings.
+</para>
+</sect1>
+
+<sect1 id="EMPTY_VALUES">
+<title>Explicitly empty values</title>
+<para>
+An attached delimiter can carry an empty value, for example
+<code>--name=</code> when the parser delimiter is <code>=</code>.
+With the default space delimiter, pass an empty argv element (for example,
+<code>--name ""</code> in a shell). Strings and types with
+<classname>StringLike</classname> traits receive the empty string directly.
+Numeric values reject empty input. Custom stream extractors decide whether
+empty input is valid through their <methodname>operator&gt;&gt;</methodname>
+implementation; no default-value substitution is performed.
+Constraints still check explicitly supplied values, including empty strings.
+These rules apply to both <classname>ValueArg</classname> and
+<classname>MultiArg</classname>. Omitting a value entirely is still an error.
+</para>
+</sect1>
+
 <sect1 id="COMPILING">
 <title>Compiling</title>
+<para>
+For installed CMake consumers, use
+<code>find_package(TCLAP CONFIG REQUIRED)</code> and link your application
+target with <code>target_link_libraries(app PRIVATE TCLAP::TCLAP)</code>.
+Use <code>CMAKE_PREFIX_PATH</code> for a custom installation prefix, or
+<code>TCLAP_DIR</code> for a nonstandard package metadata directory. See
+<filename>INSTALL</filename> in the source root for a complete example.
+TCLAP 1.4 remains usable in C++98 mode.
+</para>
 <para>
 <emphasis>TCLAP</emphasis> is implemented entirely in header files 
 which means you only need to include CmdLine.h to use the library.
@@ -506,7 +594,10 @@ important for unlabeled arguments.
 An <classname>UnlabeledMultiArg</classname> is an <classname>UnlabeledValueArg</classname> that allows more than one value to be specified.  Only one
 <classname>UnlabeledMultiArg</classname> can be specified per command line.
 The <classname>UnlabeledMultiArg</classname> simply reads the remaining
-values from argv up until -- or the end of the array is reached.
+unmatched operand values through the end of argv, including values after
+<parameter>--</parameter> with its normal non-ignoreable setting. The marker
+itself is consumed by the parser. See <link linkend="IGNORE_ARGS">end option
+recognition</link> for the ignoreable policy and branch-specific limitations.
 </para>
 <para>
 Say you want a strange command
@@ -529,10 +620,11 @@ really something like:
 To handle situations where multiple, unlabeled arguments are needed,
 we provide the <classname>UnlabeledMultiArg</classname>. 
 <classname>UnlabeledMultiArg</classname>s
-are declared much like everything else, but with only a description
-of the arguments. By default, if an <classname>UnlabeledMultiArg</classname> 
-is specified, then at least one is required to be present or an
-exception will be thrown. The most important thing to remember is,
+take an explicit <parameter>required</parameter> constructor boolean; there
+is no default for that choice. With true, at least one operand must be supplied
+or parsing fails. With false, omission is allowed and
+<methodname>getValue()</methodname> returns an empty vector. The example below
+chooses false. The most important thing to remember is,
 that like <classname>UnlabeledValueArg</classname>s: order matters! 
 In fact, <emphasis>an UnlabeledMultiArg must be the last argument added to the
 CmdLine!</emphasis>. Here is what a declaration looks like:
@@ -542,7 +634,7 @@ CmdLine!</emphasis>. Here is what a declaration looks like:
                 //
                 // UnlabeledMultiArg must be the LAST argument added!
                 //
-                UnlabeledMultiArg&lt;string&gt; multi("file names");
+                UnlabeledMultiArg&lt;string&gt; multi("fileNames", "file names", false, "string");
                 cmd.add( multi );
                 cmd.parse(argc, argv);
 
@@ -665,6 +757,12 @@ be useful if there is a natural default. For example, selecting the
 encryption algorithm may default to AES, but there may be flags for
 choosing another algorithm and they are all mutually exclusive.
 </para>
+<para>
+<classname>AnyOf</classname> groups arguments for presentation only. It does
+not require a member to be selected or make one member depend on another.
+Each argument's own requirements still apply; check any conditional
+dependencies in application code after a successful parse.
+</para>
 </sect1>
 
 
@@ -690,9 +788,133 @@ option on the command line. The help output is updated accordingly.
 </sect1>
 
 
+<sect1 id="REGISTRATION_CONFLICTS">
+<title>Argument registration conflicts</title>
+<para>
+Each argument name must be unique within a parser, including names of
+positional arguments. Nonempty short flags must also be unique. Short flags
+and long names are separate namespaces: one argument can use
+<code>-x</code> while another uses <code>--x</code>. Registering the same
+argument object twice is rejected. Descriptions are presentation text and
+may be identical or empty without causing a conflict.
+</para>
+<para>
+These checks also apply when adding arguments to groups and attaching groups
+to a parser. They do not change the separate rules for positional ordering or
+exclusive groups. Failed registration leaves the parser and group membership
+unchanged.
+</para>
+<para>
+Use <methodname>arg.conflictsWith(other)</methodname> to check for conflicting
+declarations, or compare addresses to check whether two references identify
+the same object. The legacy virtual equality operator is retained for source
+compatibility, including its positional description comparisons, but no longer
+controls registration or exclusive group selection. The conflict rule is
+nonvirtual and applies to custom arguments through their declared names and
+flags; additional tokens recognized by a custom <methodname>processArg()</methodname>
+are not inferred by registration. Custom equality overrides that previously
+changed duplicate detection must adapt to this declared-name-and-flag rule.
+</para>
+</sect1>
+
+<sect1 id="EMBEDDED_NUL_VALUES">
+<title>Embedded NUL bytes in values</title>
+<para>
+Stream-extracted values (<classname>ValueLike</classname>) reject embedded
+NUL bytes by default. This includes numeric, boolean and character values,
+and custom types using <code>operator&gt;&gt;</code>. For example, an integer
+token containing the bytes <code>42\0junk</code> is rejected instead of
+being silently read as <code>42</code>. This matters when supplying
+<code>std::string</code> tokens through the vector parsing overload; ordinary
+C-string command-line arguments cannot carry embedded NUL bytes.
+</para>
+<para>
+To retain the historical behavior, define
+<code>TCLAP_ALLOW_NUL_TRUNCATION=1</code> before including any TCLAP headers.
+The default is <code>0</code>. Compatibility mode passes only the prefix
+before the first NUL to the extractor; it does not accept ordinary trailing
+junk such as <code>42junk</code>. For CMake consumers:
+</para>
+<programlisting>
+        target_compile_definitions(myapp PRIVATE TCLAP_ALLOW_NUL_TRUNCATION=1)
+</programlisting>
+<para>
+Use the same setting across every translation unit in the program, including
+libraries that include TCLAP, because it changes header-defined template
+behavior. <classname>StringLike</classname> values, including
+<code>std::string</code>, preserve all bytes under either setting.
+</para>
+</sect1>
+
+<sect1 id="PARSE_LIFECYCLE">
+<title>Parse failures and reuse</title>
+<para>
+Check the result of the entire parse before using any argument values for
+application work. Parsing is not transactional: an error may leave earlier
+arguments changed, or even store a value that subsequently fails its
+constraint. <methodname>isSet()</methodname> does not restore old values and
+cannot substitute for checking the whole parse.
+</para>
+<para>
+To parse again, call <methodname>reset()</methodname> and supply fresh input.
+The vector overload expects the program name at element 0 and erases that
+element. Reset restores parser/argument state, not the caller's input vector.
+Combined switches may also modify characters in that vector.
+</para>
+<para>
+By default the parser reports input errors and exits. For recovery in an
+embedding application, use <methodname>setExceptionHandling(false)</methodname>
+and catch <classname>ArgException</classname> around the entire parse.
+With automatic help/version enabled, their visitors throw
+<classname>ExitException</classname>; handle that requested exit separately
+and stop normal application work. The following example disables those
+visitors to focus on error recovery.
+</para>
+<programlisting>
+#include &lt;tclap/CmdLine.h&gt;
+#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+
+int main() {
+    TCLAP::CmdLine cmd("reuse example", ' ', "1", false);
+    cmd.setExceptionHandling(false);
+    TCLAP::ValueArg&lt;int&gt; number("n", "number", "number", false, 0, "integer");
+    cmd.add(number);
+    std::vector&lt;std::string&gt; first;
+    first.push_back("prog"); first.push_back("-n"); first.push_back("7");
+    first.push_back("--bogus");
+    try {
+        cmd.parse(first);
+        return 1; // This input should fail.
+    } catch (const TCLAP::ArgException &amp;) {
+        // A failure may leave number changed. Do no application work here.
+    }
+    cmd.reset();
+    // Build new input, including the program name; do not reuse first.
+    std::vector&lt;std::string&gt; second;
+    second.push_back("prog"); second.push_back("-n"); second.push_back("2");
+    try { cmd.parse(second); }
+    catch (const TCLAP::ArgException &amp;) { return 2; }
+    std::cout &lt;&lt; number.getValue() &lt;&lt; '\n';
+    return 0;
+}
+</programlisting>
+</sect1>
+
 <sect1 id="CONSTRAINT">
 <title>I want to constrain the values allowed for a particular 
 argument...</title>
+<para>
+Constraints check values explicitly supplied on the command line. An omitted
+optional argument has <methodname>isSet()</methodname> equal to false, and its
+default value is intentionally not checked against its constraint. The
+application decides whether and how to use that default. For example, an
+optional integer may default to 0 even if its allowed input values are 1 and 2.
+A required argument must still be supplied: its default does not satisfy the
+requirement. Read values only after the whole parse succeeds.
+</para>
+
 
 <para>
 For example, one might wish to allow only integers greater than 0. In
@@ -741,6 +963,114 @@ help/usage for the <classname>Arg</classname> therefore lists the
 allowable values.  Because of this, you might want to keep the list 
 relatively small, however there is no limit on this.
 </para>
+
+<sect2 id="ORDERED_CONSTRAINTS">
+<title>Ready-made comparisons and ranges</title>
+<para>
+Use these constraints when a value must be positive, below a limit, or inside
+an interval. They own their bounds and implement <classname>Constraint&lt;T&gt;</classname>;
+no function object or subclass is required. Include
+<filename>tclap/ComparisonConstraint.h</filename> for the comparisons,
+<filename>tclap/RangeConstraint.h</filename> for the range, or
+<filename>tclap/CmdLine.h</filename> for both.
+</para>
+<informaltable><tgroup cols="2"><tbody>
+<row><entry><classname>LessThanConstraint&lt;T&gt;(bound)</classname></entry><entry>value &lt; bound</entry></row>
+<row><entry><classname>LessThanOrEqualConstraint&lt;T&gt;(bound)</classname></entry><entry>value &lt;= bound</entry></row>
+<row><entry><classname>GreaterThanConstraint&lt;T&gt;(bound)</classname></entry><entry>value &gt; bound</entry></row>
+<row><entry><classname>GreaterThanOrEqualConstraint&lt;T&gt;(bound)</classname></entry><entry>value &gt;= bound</entry></row>
+<row><entry><classname>RangeConstraint&lt;T&gt;(min, max)</classname></entry><entry>min &lt;= value &lt;= max</entry></row>
+</tbody></tgroup></informaltable>
+<para>For example:</para>
+<programlisting>TCLAP::GreaterThanConstraint&lt;int&gt; positive(0);
+TCLAP::RangeConstraint&lt;int&gt; interval(-1, 9);
+TCLAP::ValueArg&lt;int&gt; p(&quot;p&quot;, &quot;positive&quot;, &quot;positive integer&quot;, true, 0, &amp;positive);
+TCLAP::ValueArg&lt;int&gt; n(&quot;n&quot;, &quot;number&quot;, &quot;integer from -1 to 9&quot;, false, 0, &amp;interval);
+cmd.add(p);
+cmd.add(n);</programlisting>
+<para>
+Ranges include both endpoints; equal endpoints allow that one value. A reversed
+range accepts no values, preserving the existing range contract. Ordered
+floating-point comparisons reject NaN values and bounds. Infinities follow the
+specified comparisons: an inclusive range from negative to positive infinity
+allows infinite values, while a finite range rejects them. No bound arithmetic
+is used, avoiding overflow at integer limits.
+</para>
+<para>
+The types must support the corresponding comparisons and insertion into an
+output stream for generated text. Strings use their lexicographic ordering.
+Short IDs such as <code>[&gt;0]</code> and <code>[-1-9]</code> are formatted once
+at construction; descriptions such as <quote>value must be greater than 0</quote>
+are formatted on request. Keep constraints alive and at a stable address while
+arguments borrow them. Constraints still check supplied values only; omitted
+optional defaults and parser reset behavior are unchanged. See
+<filename>examples/test130.cpp</filename> for a complete program.
+</para>
+<para>The implementation supports C++98 and copies its bounds. Types need
+not be default constructible merely to construct a constraint.</para>
+</sect2>
+
+<sect2 id="PREDICATE_CONSTRAINT">
+<title>Predicates and validation rules</title>
+<para>
+<classname>PredicateConstraint</classname> owns a validation callable and
+separate description and short-ID strings. The callable accepts
+<code>const T&amp;</code> and returns true to accept a value, false to reject it.
+The description is used in errors; the short ID appears in usage.
+Include <filename>tclap/PredicateConstraint.h</filename>, or
+<filename>tclap/CmdLine.h</filename>.
+</para>
+<para>In C++98, use a free function or a function object with a const
+<methodname>operator()</methodname>. Specify the function-object type explicitly.
+<methodname>MakeConstraint&lt;T&gt;()</methodname> also deduces that type,
+but C++98 callers must spell it when storing the returned object.</para>
+<programlisting>bool positive(const int &amp;value) { return value &gt; 0; }
+struct AtLeast {
+    explicit AtLeast(int minimum) : minimum(minimum) {}
+    bool operator()(const int &amp;value) const { return value &gt;= minimum; }
+    int minimum;
+};
+TCLAP::PredicateConstraint&lt;int&gt; positiveInput(&quot;must be positive&quot;, &quot;positive&quot;, positive);
+TCLAP::PredicateConstraint&lt;int, AtLeast&gt; minimum(
+    &quot;must be at least 3&quot;, &quot;at-least-3&quot;, AtLeast(3));
+TCLAP::ValueArg&lt;int&gt; number(&quot;n&quot;, &quot;number&quot;, &quot;number&quot;, false, 0, &amp;minimum);
+cmd.add(number);</programlisting>
+<para>
+Declare each constraint before the arguments borrowing it. A factory returns
+an object, not an owning pointer; keep the named object alive and at the same
+address while the arguments can use it. The callable owns copied/captured
+values, but pointers, references and explicit reference wrappers inside it
+remain borrowed. Do not move a constraint after binding its address.
+</para>
+<para>
+The wrapper invokes the stored callable as const. It does not make a functor
+mutable to accommodate a non-const call operator. Null function pointers
+are rejected with <classname>std::invalid_argument</classname> at construction.
+Exceptions from application code propagate from the constraint; the parser
+keeps its existing exception handling. Const invocation alone does not make
+external captured state immutable or provide synchronization.
+</para>
+<para>
+For a rule with computed help text, <methodname>MakeRuleConstraint&lt;T&gt;()</methodname>
+uses the same owned rule object for validation, <methodname>description()</methodname>
+and <methodname>shortID()</methodname>. Both text methods must be const and
+return strings; they run when the text is requested rather than being cached
+by the wrapper. For example:
+</para>
+<programlisting>struct PositiveRule {
+    bool operator()(const int &amp;value) const { return value &gt; 0; }
+    std::string description() const { return &quot;must be positive&quot;; }
+    std::string shortID() const { return &quot;positive&quot;; }
+};
+TCLAP::PredicateConstraint&lt;int, PositiveRule, TCLAP::internal::RuleConstraintText&gt;
+    positive = TCLAP::MakeRuleConstraint&lt;int&gt;(PositiveRule());</programlisting>
+<para>
+Callable constraints check supplied values, not omitted optional defaults.
+Repeated arguments check each value independently. The installed
+<classname>ValuesConstraint</classname> and other existing constraints remain
+available. See <filename>examples/test129.cpp</filename> for a complete program.
+</para>
+</sect2>
 </sect1>
 
 
@@ -852,31 +1182,31 @@ false will disable automatic help and version generation.
 </sect1>
 
 <sect1 id="IGNORE_ARGS">
-<title>I want to ignore certain arguments...</title>
+<title>End option recognition with --</title>
 <para>
-The <parameter>--</parameter> flag is automatically included in the 
-<classname>CmdLine</classname>.
-As (almost) per POSIX and GNU standards, any argument specified
-after the <parameter>--</parameter> flag is ignored. 
-<emphasis>Almost</emphasis> because if an
-<classname>UnlabeledValueArg</classname> that has not been set or an
-<classname>UnlabeledMultiArg</classname> has been specified, by default 
-we will assign any arguments beyond the <parameter>--</parameter> 
-to the those arguments as
-per the rules above. This is primarily useful if you want to pass
-in arguments with a dash as the first character of the argument. It
-should be noted that even if the <parameter>--</parameter> flag is 
-passed on the command line, the <classname>CmdLine</classname> will 
-<emphasis>still</emphasis> test to make sure all of the required 
-arguments are present.
+The automatically registered <parameter>--</parameter> marker ends option
+recognition. POSIX/GNU conventions treat following tokens as operands,
+including tokens beginning with a dash; they do not mean that all following
+input is discarded. TCLAP's ordinary unlabeled arguments consume those tokens
+in their registered order. The marker itself is not an operand.
 </para>
-
 <para>
-Of course, this isn't how POSIX/GNU handle things, they explicitly
-ignore arguments after the <parameter>--</parameter>. To accommodate this, 
-we can make both <classname>UnlabeledValueArg</classname>s and 
-<classname>UnlabeledMultiArg</classname>s ignoreable in their constructors. 
-See the <ulink url="html/index.html"> API Documentation</ulink> for details. 
+For example, with a switch <parameter>-x</parameter> and an unlabeled multi
+argument for files, <code>prog -x before -- -x after</code> sets the switch once
+and supplies the three operands <code>before</code>, <code>-x</code> and
+<code>after</code>. The second <parameter>-x</parameter> is a file name, not
+another switch occurrence. Required arguments are still checked after
+<parameter>--</parameter>; the marker does not satisfy missing requirements.
+</para>
+<para>
+TCLAP implements this through its separate ignoreable policy. Labeled arguments
+are normally ignoreable, so they stop matching after the marker. Unmatched
+remaining tokens are not reported as unknown-option errors. Unlabeled
+arguments are normally not ignoreable and therefore continue consuming input.
+Passing true for an unlabeled argument's constructor parameter
+<parameter>ignoreable</parameter> makes it stop consuming after the marker as
+well. This is a TCLAP policy choice, separate from the standard meaning of
+ending option recognition.
 </para>
 </sect1>
 
@@ -1118,5 +1448,32 @@ distribution.
 <emphasis>Happy coding!</emphasis>
 </para>
 
+</chapter>
+<chapter id="ARGUMENT_ALIASES"><title>Argument aliases</title>
+<para>Call <literal>arg.addAlias("?", "usage")</literal> before registering an
+argument to add a short flag, a long name, or both. Either string may be empty,
+but not both. For example:</para>
+<programlisting>SwitchArg verbose("v", "verbose", "Verbose output");
+verbose.addAlias("V", "chatty");
+cmd.add(verbose);</programlisting>
+<para>Aliases share the original argument's value, required status, visitor,
+constraints, and group membership. Repeating a canonical spelling and an alias
+has the same effect as repeating the canonical spelling. Short switch aliases
+work in combined switches. Positional arguments cannot have aliases. Aliases
+must be nonempty short flags or long names without whitespace, NUL bytes, or
+prefixes; short flags contain one character. These checks are stricter than
+some historical canonical-name validation. Aliases must be unique within the argument and across registered arguments, including
+built-in help and version arguments. Registration validates aliases against the destination delimiter and prefixes,
+rejecting ambiguous rendered tokens. Value-taking aliases cannot contain the
+value delimiter. Alias labels cannot contain control bytes. Registration freezes the alias list;
+reset retains it. Use a constructor without a parser parameter, configure
+aliases, and then register the argument.</para>
+<para>The compact usage synopsis uses the canonical spelling. Detailed help
+lists all spellings, in insertion order, with the same value placeholder.
+DocBook output lists them as terms for one option. Custom output can inspect
+<literal>arg.aliases()</literal>, a read-only vector of <literal>ArgAlias</literal>
+objects with unprefixed <literal>flag</literal> and <literal>name</literal> fields.
+<literal>setBy()</literal> records the spelling actually used; diagnostics retain
+the canonical identity.</para>
 </chapter>
 </book>
